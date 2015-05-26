@@ -133,7 +133,7 @@ class Punto():
 	def procesar_PPT_TRMM(self):
 		""" Hace la extraccion de la serie de TRMM para el lugar y la guarda en TRMM_PP """
 		
-		mod = self.getattr(p, "3B42")
+		mod = getattr(self, "3B42")
 		s = pd.Series(mod[u'precipitation'])
 		s.index = mod[u'time']
 		
