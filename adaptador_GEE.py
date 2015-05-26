@@ -124,16 +124,16 @@ class Punto():
 		self.MODIS_TEMP_NOCHE = (self._interpolar_serie(filtrado, u'LST_Night_1km')*0.02) - 273
 		
 		return None
-	
+
 	def calcular_fpar(self, pendiente, ordenada):
 		""" calcula la Fpar para la serie """
 		## TODO: esto!!		
 		return None
 	
-	def extraer_PPT_TRMM(self):
+	def procesar_PPT_TRMM(self):
 		""" Hace la extraccion de la serie de TRMM para el lugar y la guarda en TRMM_PP """
 		
-		mod = self._get_recurso('TRMM/3B42')
+		mod = self.getattr(p, "3B42")
 		s = pd.Series(mod[u'precipitation'])
 		s.index = mod[u'time']
 		
