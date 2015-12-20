@@ -21,24 +21,27 @@ class Punto():
     self.fasa = fasa
     self.faco = faco
     
-    self.MODIS_TEMP_DIA = None
-    self.MODIS_TEMP_NOCHE = None
-    
-    self.TRMM_PP = None
-    
-    self.LANDSAT7_8DAY_NDVI = None
-    self.LANDSAT7_8DAY_EVI = None
-    self.LANDSAT7_32DAY_NDVI = None
-    self.LANDSAT7_32DAY_EVI = None    
+    ##self.MODIS_TEMP_DIA = None
+    ##self.MODIS_TEMP_NOCHE = None
+    ##self.TRMM_PP = None
+    #self.LANDSAT7_8DAY_NDVI = None
+    #self.LANDSAT7_8DAY_EVI = None
+    #self.LANDSAT7_32DAY_NDVI = None
+    #self.LANDSAT7_32DAY_EVI = None    
     
   def _crear_geometria_gee(self, reproject = True):
-    """ Con la lat y lon crea una geometria de punto para consultar la api """
+    """ Con la geometria del pixel, crea una geometria de punto para consultar la api. 
+    Si es necesario se puede pasar el parametro reproject que reproyecta de modis a WGS84 
+    
+    :param reproject: True por defecto, reproyecta de MODIS a WGS84
+    :returns: geometria de GEE 
+    """
+
     if reproject == True:
       wgs84 = pyproj.Proj("+init=EPSG:4326")
       modis = pyproj.Proj("+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs")
     
       lat, lon = pyproj.transform(modis, wgs84, self.GEOMETRY.x, self.GEOMETRY.y)
-      print lat, lon
 
     else:
       lat = self.GEOMETRY.x
@@ -76,13 +79,13 @@ class Punto():
 #     self.extraccion_modis_interpolada = s.asfreq("D", method='backfill') ## diferentes metodos de interpolacion (lineal y ultimo valor para atras/adelante)
     return s.resample('D').interpolate()
   
-  def extraer_IV_MODIS_GEE(self):
-    """ Extrae MOD13Q1 Hace la extraccion de MOD13Q1 de GEE y guarda el df para procesarlo con las demas fuciones 
-    deprecated!!! usar _get_recurso() o directamente el extrar_variable_completa del objeto lote """
-    mod = self._get_recurso('MODIS/MOD13Q1')
-    self.MODIS_IV = mod
-
-    return None
+  ##def extraer_IV_MODIS_GEE(self):
+  ##  """ Extrae MOD13Q1 Hace la extraccion de MOD13Q1 de GEE y guarda el df para procesarlo con las demas fuciones 
+  ##  deprecated!!! usar _get_recurso() o directamente el extrar_variable_completa del objeto lote """
+  ##  mod = self._get_recurso('MODIS/MOD13Q1')
+  ##  self.MODIS_IV = mod
+  ##
+  ##  return None
 
   def procesar_IV_MODIS(self):
     """ Toma el df de MOD13Q1 generado por alguna de las funciones de extraccion y filtra y procesa el producto MOD13Q1, guarda el resultado en los attributos MOD13Q1_NDVI, MOD13Q1_EVI """
@@ -100,7 +103,8 @@ class Punto():
     TODO: chequear que sea asi?? que los saque o que hace"""
     
     ## Generar un vector de condiciones de calidad usando una lambda func
-    criterion = df[u'DetailedQA'].map(lambda x: not (int(x) & 32768 == 32768 or\
+    criterion = df[u'DetailedQA'].map(lambda x: not (pd.isnull(x) or\
+                   int(x) & 32768 == 32768 or\
                    int(x) & 16384 == 16384 or\
                    int(x) & 1024 == 1024 or\
                    int(x) & 192 != 64))
