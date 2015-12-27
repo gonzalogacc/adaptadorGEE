@@ -3,6 +3,7 @@ import pandas as pd
 import minimal_pixel_extractor_modis
 import pyproj
 import sys
+from datetime import datetime
 
 from shapely.geometry import Polygon, MultiPolygon, MultiPoint
 from shapely.wkt import loads
@@ -71,14 +72,6 @@ class Punto():
 #     self.extraccion_modis_interpolada = s.asfreq("D", method='backfill') ## diferentes metodos de interpolacion (lineal y ultimo valor para atras/adelante)
     return s.resample('D').interpolate()
   
-  ##def extraer_IV_MODIS_GEE(self):
-  ##  """ Extrae MOD13Q1 Hace la extraccion de MOD13Q1 de GEE y guarda el df para procesarlo con las demas fuciones 
-  ##  deprecated!!! usar _get_recurso() o directamente el extrar_variable_completa del objeto lote """
-  ##  mod = self._get_recurso('MODIS/MOD13Q1')
-  ##  self.MODIS_IV = mod
-  ##
-  ##  return None
-
   def procesar_IV_MODIS(self):
     """ Toma el df de MOD13Q1 generado por alguna de las funciones de extraccion y filtra y procesa el producto MOD13Q1, guarda el resultado en los attributos MOD13Q1_NDVI, MOD13Q1_EVI """
     
@@ -103,13 +96,13 @@ class Punto():
     ## aplicar las condiciones al df original
     return df[criterio]
  
-  def _filtro_temporal(self, df, inicio, final):
+  def filtro_temporal(self, df, inicio, final):
     """ Dado un dataframe y un rango temporal devuelve los elementos dentro del rango temporal
     :param df: dataframe a filtrar
     :returns: filtered pandas dataframe """
     fecha_inicial = datetime.strptime(inicio, "%Y-%m-%d")
     fecha_final = datetime.strptime(final, "%Y-%m-%d")
-    criterio = serie.index.map(lambda x: (x > fecha_inicial) and (x < fecha_final))
+    criterio = df.time.map(lambda x: (x > fecha_inicial) and (x < fecha_final))
     return df[criterio]
   
   def _filtro_calidad_TEMP_MODIS(self, df, producto):
