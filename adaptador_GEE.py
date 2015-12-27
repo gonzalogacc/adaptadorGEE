@@ -21,14 +21,6 @@ class Punto():
     self.fasa = fasa
     self.faco = faco
     
-    ##self.MODIS_TEMP_DIA = None
-    ##self.MODIS_TEMP_NOCHE = None
-    ##self.TRMM_PP = None
-    #self.LANDSAT7_8DAY_NDVI = None
-    #self.LANDSAT7_8DAY_EVI = None
-    #self.LANDSAT7_32DAY_NDVI = None
-    #self.LANDSAT7_32DAY_EVI = None    
-    
   def _crear_geometria_gee(self, reproject = True):
     """ Con la geometria del pixel, crea una geometria de punto para consultar la api. 
     Si es necesario se puede pasar el parametro reproject que reproyecta de modis a WGS84 
@@ -103,14 +95,22 @@ class Punto():
     TODO: chequear que sea asi?? que los saque o que hace"""
     
     ## Generar un vector de condiciones de calidad usando una lambda func
-    criterion = df[u'DetailedQA'].map(lambda x: not (pd.isnull(x) or\
+    criterio = df[u'DetailedQA'].map(lambda x: not (pd.isnull(x) or\
                    int(x) & 32768 == 32768 or\
                    int(x) & 16384 == 16384 or\
                    int(x) & 1024 == 1024 or\
                    int(x) & 192 != 64))
     ## aplicar las condiciones al df original
-    return df[criterion]
-  
+    return df[criterio]
+ 
+  def _filtro_temporal(self, df, inicio, final):
+    """ Dado un dataframe y un rango temporal devuelve los elementos dentro del rango temporal
+    :param df: dataframe a filtrar
+    :returns: filtered pandas dataframe """
+    fecha_inicial = datetime.strptime(inicio, "%Y-%m-%d")
+    fecha_final = datetime.strptime(final, "%Y-%m-%d")
+    criterio = serie.index.map(lambda x: (x > fecha_inicial) and (x < fecha_final))
+    return df[criterio]
   
   def _filtro_calidad_TEMP_MODIS(self, df, producto):
     """ Aplica el filtro de calidad a las imagenes modis de temperatura MOD11Ax """
@@ -196,15 +196,19 @@ class Lote:
     que caen dentro y el porcentaje dentro tambien en WKT/feature collection """
     
     poligono = loads(self.WKT_POLYGON)
-    c, p = minimal_pixel_extractor_modis.get_pixeles_modis(poligono, proporcion)
-    
-    return c
+    geometrias = minimal_pixel_extractor_modis.get_pixeles_modis(poligono, proporcion)
+    if geometrias is not None:
+      ## return pixel centroid
+      return geometrias[0]
+    ## no selected pixels
+    return None
   
-  def construir_puntos_modis(self):
+  def construir_puntos_modis(self, proporcion=0.9):
     """ rellena la lista de puntos modis que caen dentro del lote con objetos Punto """
-    
-    for p in self._get_pixeles_modis(0.9):
-      self.PIXELES_MODIS.append(Punto(p.wkt, self.fasa, self.faco))
+    pixels_modis = self._get_pixeles_modis(proporcion) 
+    if pixels_modis is not None:
+      for p in pixels_modis:
+        self.PIXELES_MODIS.append(Punto(p.wkt, self.fasa, self.faco))
     
     return None
   
@@ -242,7 +246,8 @@ class Lote:
     return None
   
   def aplicar_a_puntos(self, funcion):
-    """ Si le das uno de los metodos de los puntos se los aplica a todos los puntos del lote uno por uno """
+    """ Si le das uno de los metodos de los puntos se los aplica a todos los puntos del lote uno por uno 
+    XXX TODO: Tiene que tomar los argumentos de la funcion tambien asi puedo aplicar cualquier funcion que necesite"""
     for p in self.PIXELES_MODIS:
       getattr(p, funcion)()
 
@@ -250,7 +255,8 @@ class Lote:
 
   def calcular_serie_agregada(self, variable):
     """ toma todos los puntos que correspondan al lote y los agrega en una sola serie por el promedio 
-    de la variable que se le pida"""
+    de la variable que se le pida
+    XXX TODO: Que sea posible agregarle el metodo de agregacion como un atributo """
     
     ## Toma las series de cada uno de los puntos y las mete en una lista
     series_iterable = []
