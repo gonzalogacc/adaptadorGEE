@@ -43,7 +43,7 @@ class Punto():
     
     return ee.Geometry.Point(lat, lon)
     
-  def _get_recurso(self, recurso):
+  def _get_recurso(self, recurso, resolution = 1):
     """ Toma el nombre de un recurso y devuelve un dataframe con el resultado de la consulta de este punto en el producto especificado 
     
     :param recurso: Nombre del recurso que se quiere extraer (mismo nombre que en GEE)
@@ -51,7 +51,7 @@ class Punto():
     """
     ## Generar la coleccion del recurso y consultarla para este punto
     collection = ee.ImageCollection(recurso).filterDate(self.fasa, self.faco)
-    serie_vi = collection.getRegion(self.GEE_GEOMETRY, 1).getInfo()
+    serie_vi = collection.getRegion(self.GEE_GEOMETRY, resolution).getInfo()
     
     mod = pd.DataFrame(serie_vi[1:], columns = serie_vi[0])
     mod[u'time'] = pd.to_datetime(mod[u'time'], unit='ms')
@@ -72,6 +72,17 @@ class Punto():
 #     self.extraccion_modis_interpolada = s.asfreq("D", method='backfill') ## diferentes metodos de interpolacion (lineal y ultimo valor para atras/adelante)
     return s.resample('D').interpolate()
   
+  def procesar_radiacion_global(self):
+    """ Toma la radiacion global (INPE cargada casera), genera la columna de fecha y calcula los ajustes para terminar en radiacio incidente (XXX TODO: ver unidades) """
+    self.RadSolarGlobal["time"] = self.RadSolarGlobal.apply(lambda m: datetime(int(m["id"].split('_')[1][:4]), \
+                                                                              int(m["id"].split('_')[1][4:6]), \
+                                                                              int(m["id"].split('_')[1][6:8])), axis=1)
+
+    ## TODO: Faltan hacer las conversiones de unidades OJO!!, tengo que hacer que el par quede en otra columna y que no sobre escriba el raw data para que quede diponible para corregir si es necesario
+    self.RadSolarGlobal["b1"] = self.RadSolarGlobal.apply(lambda b: b["b1"]/10.0*24.0*3600/1000000*0.48, axis = 1)
+    setattr(self, "RadPAR", self._interpolar_serie(self.RadSolarGlobal, u'b1'))
+    return None
+
   def procesar_IV_MODIS(self):
     """ Toma el df de MOD13Q1 generado por alguna de las funciones de extraccion y filtra y procesa el producto MOD13Q1, guarda el resultado en los attributos MOD13Q1_NDVI, MOD13Q1_EVI """
     
@@ -205,7 +216,7 @@ class Lote:
     
     return None
   
-  def extraer_variables_lote_completo(self, variables):
+  def extraer_variables_lote_completo(self, variables, resolution = 1, ignoredate = False):
     """ Extrae la variable que se le pasa como argumento para el lote, la variable la guarda en un atributo
     que se llama igual que la variable que extrae """
     ## agarro las geometrias del lote y las convierto en un feature para consultar en GEE
@@ -219,8 +230,12 @@ class Lote:
 
       
       ## hago la consulta de todas las geometrias juntas para ahorrar tiempo
-      collection = ee.ImageCollection(variable).filterDate(self.fasa, self.faco)
-      serie_vi = collection.getRegion(feature_collection, 1).getInfo()
+      if ignoredate:
+        ## Datasets importados no se les puede definir la fecha dentro de GEE, hay que tratarla afuera, E.j.: Radiacion global INPE
+        collection = ee.ImageCollection(variable)
+      else:
+        collection = ee.ImageCollection(variable).filterDate(self.fasa, self.faco)
+      serie_vi = collection.getRegion(feature_collection, resolution).getInfo()
       mod = pd.DataFrame(serie_vi[1:], columns = serie_vi[0])
       mod = pd.DataFrame(serie_vi[1:], columns = serie_vi[0])
       mod[u'time'] = pd.to_datetime(mod[u'time'], unit='ms')
