@@ -78,9 +78,10 @@ class Punto():
                                                                               int(m["id"].split('_')[1][4:6]), \
                                                                               int(m["id"].split('_')[1][6:8])), axis=1)
 
-    ## TODO: Faltan hacer las conversiones de unidades OJO!!, tengo que hacer que el par quede en otra columna y que no sobre escriba el raw data para que quede diponible para corregir si es necesario
     self.RadSolarGlobal["b1"] = self.RadSolarGlobal.apply(lambda b: b["b1"]/10.0*24.0*3600/1000000*0.48, axis = 1)
-    setattr(self, "RadPAR", self._interpolar_serie(self.RadSolarGlobal, u'b1'))
+    serie_interpolada_filtrada = self.filtro_temporal(self._interpolar_serie(self.RadSolarGlobal, u'b1'), self.fasa, self.faco)
+    setattr(self, "RadPAR", serie_interpolada_filtrada)
+    #setattr(self, "RadPAR", self._interpolar_serie(self.RadSolarGlobal, u'b1'))
     return None
 
   def procesar_IV_MODIS(self):
@@ -92,7 +93,32 @@ class Punto():
     setattr(self, "MOD13Q1_EVI", self._interpolar_serie(filtrado, u'EVI'))
     
     return None
+
+  ######## Set de funciones para calcular PPNA #########
+  def VI2fPAR_lineal(self, VI, coeficientes):
+    """ Toma una serie de indice de vegetacion que se le pasa como argumento y los coeficientes y agrega en el pixel 
+    una variable de fpar calculado con el indice de vegetacion que se le pasa"""
+    ## calibration and value filtering 
+    fpar = (getattr(self, VI) * coeficientes[0]) + coeficientes[1]
     
+    filtered_fpar = fpar.apply(lambda x: x if x > 0 else 0).apply(lambda x: x if x < 1 else 1)
+
+    ## Store attribute back into self
+    setattr(self, "fpar_%s" %(VI,), filtered_fpar)
+
+    return None
+
+  def fPAR2PARint(self, fpar_serie):
+    """ Multiplica el fpar por la radiacion incidente para obtener la radiacion interceptada """
+    setattr( self, "PARint_%s" %(fpar_serie, ), getattr(self, fpar_serie) * self.RadPAR )
+    return None
+
+  def PARint2PPNA(self, par_int_serie, EUR):
+    """ Multiplica la radiacion interceptada por la calibracion para obtener la PPNA """
+    setattr( self, "PPNA_%s_%s" %(par_int_serie, "05"), getattr(self, par_int_serie) * EUR )
+    return None
+  ######################################################
+
   def _filtro_calidad_IV_MODIS(self, df):
     """ Toma una extraccion de MOD13Q1 como un df y devuelve otro df con los valores de IV filtrados
     lo que no cimplen la calidad los sacan del df, funcion interna
@@ -113,7 +139,7 @@ class Punto():
     :returns: filtered pandas dataframe """
     fecha_inicial = datetime.strptime(inicio, "%Y-%m-%d")
     fecha_final = datetime.strptime(final, "%Y-%m-%d")
-    criterio = df.time.map(lambda x: (x > fecha_inicial) and (x < fecha_final))
+    criterio = df.index.map(lambda x: (x > fecha_inicial) and (x < fecha_final))
     return df[criterio]
   
   def _filtro_calidad_TEMP_MODIS(self, df, producto):
@@ -253,11 +279,11 @@ class Lote:
 
     return None
   
-  def aplicar_a_puntos(self, funcion):
+  def aplicar_a_puntos(self, funcion, *arg):
     """ Si le das uno de los metodos de los puntos se los aplica a todos los puntos del lote uno por uno 
     XXX TODO: Tiene que tomar los argumentos de la funcion tambien asi puedo aplicar cualquier funcion que necesite"""
     for p in self.PIXELES_MODIS:
-      getattr(p, funcion)()
+      getattr(p, funcion)(*arg)
 
     return None
 
